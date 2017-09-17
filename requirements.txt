@@ -3,5 +3,5 @@ greenlet
 gevent
 
 # pysol
-pysol_base
+pysolbase
 

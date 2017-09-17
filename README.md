@@ -1,11 +1,11 @@
-pysol_daemon
+pysoldaemon
 ============
 
 Welcome to pysol
 
 Copyright (C) 2013/2017 Laurent Labatut / Laurent Champagnac
 
-pysol_daemon is a generic linux daemon in python.
+pysoldaemon is a generic linux daemon in python.
 
 It supports :
 - Double forking
@@ -20,7 +20,7 @@ Usage
 ===============
 
 An implementation is available in :
-- pysol_daemon_test.Daemon.CustomDaemon.CustomDaemon
+- pysoldaemon_test.Daemon.CustomDaemon.CustomDaemon
 
 Source code
 ===============

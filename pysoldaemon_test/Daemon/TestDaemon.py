@@ -28,10 +28,10 @@ from multiprocessing import Process
 from string import join
 
 import os
-from pysol_base.FileUtility import FileUtility
-from pysol_base.SolBase import SolBase
+from pysolbase.FileUtility import FileUtility
+from pysolbase.SolBase import SolBase
 
-from pysol_daemon_test.Daemon.CustomDaemon import CustomDaemon
+from pysoldaemon_test.Daemon.CustomDaemon import CustomDaemon
 
 SolBase.voodoo_init()
 logger = logging.getLogger(__name__)

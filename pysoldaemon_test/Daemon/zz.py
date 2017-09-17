@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from pysol_base.SolBase import SolBase
+from pysolbase.SolBase import SolBase
 
 SolBase.logging_init("INFO")
 logger = logging.getLogger(__name__)

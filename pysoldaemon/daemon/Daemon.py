@@ -27,7 +27,7 @@ import atexit
 import logging
 import sys
 
-from pysol_base.SolBase import SolBase
+from pysolbase.SolBase import SolBase
 
 try:
     import resource

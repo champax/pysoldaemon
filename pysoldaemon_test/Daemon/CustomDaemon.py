@@ -24,9 +24,9 @@
 import logging
 
 import os
-from pysol_base.SolBase import SolBase
+from pysolbase.SolBase import SolBase
 
-from pysol_daemon.daemon.Daemon import Daemon
+from pysoldaemon.daemon.Daemon import Daemon
 
 logger = logging.getLogger(__name__)
 

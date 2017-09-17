@@ -54,7 +54,7 @@ def requirement_read(req_file):
 # SETUP
 # ===========================
 
-p_name = "pysol_daemon"
+p_name = "pysoldaemon"
 p_author = "Laurent Champagnac"
 p_email = "champagnac.laurent@gmail.com"
 p_url = "https://knock.center"
