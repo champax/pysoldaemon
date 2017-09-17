@@ -1,0 +1,7 @@
+# gevent stack
+greenlet
+gevent
+
+# pysol
+pysol_base
+
