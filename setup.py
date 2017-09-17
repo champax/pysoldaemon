@@ -67,7 +67,7 @@ setup(
     author=p_author,
     author_email=p_email,
     url=p_url,
-    description=p_name + " APIs",
+    description="A generic linux daemon in python",
 
     # Version, format : Major.Minor.Revision
     version=p_version,
