@@ -21,3 +21,68 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 # ===============================================================================
 """
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
+
+PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] >= 3
+
+# Switches:
+# PY2        PY3
+# str        bytes
+# unicode    str
+
+# Code :
+# a) replace str by bytes
+# b) replace unicode by str
+
+# Then :
+if PY3:
+    string_types = str,
+    integer_types = int,
+    text_type = str
+    binary_type = bytes
+
+    items = dict.items
+    itervalues = dict.values
+    # noinspection PyShadowingBuiltins
+    xrange = range
+    # noinspection PyShadowingBuiltins
+    long = int
+
+    max_int = sys.maxsize
+
+    print("str={0}".format(str))
+    print("bytes={0}".format(bytes))
+else:
+    # noinspection PyUnresolvedReferences,PyCompatibility
+    string_types = basestring,
+    # noinspection PyUnresolvedReferences,PyUnboundLocalVariable
+    integer_types = (int, long)
+    # noinspection PyUnresolvedReferences
+    text_type = unicode, str
+    binary_type = str
+
+    # noinspection PyUnresolvedReferences
+    items = dict.items
+    # noinspection PyUnresolvedReferences
+    itervalues = dict.itervalues
+    # noinspection PyUnresolvedReferences
+    import __builtin__
+
+    # noinspection PyUnresolvedReferences,PyShadowingBuiltins
+    xrange = __builtin__.xrange
+
+    # noinspection PyShadowingBuiltins
+    # noinspection PyUnresolvedReferences
+    str = unicode
+
+    # noinspection PyUnresolvedReferences
+    max_int = sys.maxint
+
+    # noinspection PyUnresolvedReferences
+    print("unicode={0}".format(unicode))
+    print("str={0}".format(str))
+    print("bytes={0}".format(bytes))

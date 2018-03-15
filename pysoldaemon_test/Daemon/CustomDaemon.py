@@ -123,8 +123,10 @@ class CustomDaemon(Daemon):
         self.last_action = "start"
         self._write_state()
 
+        logger.info("Engaging running loop")
         while self.is_running:
             SolBase.sleep(10)
+        logger.info("Exited running loop")
 
         self.start_loop_exited = True
         self._write_state()

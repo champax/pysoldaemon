@@ -3,5 +3,5 @@ greenlet
 gevent
 
 # pysol
-pysolbase
-
+# pysolbase
+git+https://github.com/champax/pysolbase.git@py3#egg=pysolbase
