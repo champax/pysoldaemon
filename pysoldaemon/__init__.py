@@ -43,7 +43,7 @@ if PY3:
     string_types = str,
     integer_types = int,
     text_type = str
-    binary_type = bytes
+    binary_type = bytes,bytearray
 
     items = dict.items
     itervalues = dict.values
