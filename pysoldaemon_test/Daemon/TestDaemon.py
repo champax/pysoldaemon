@@ -194,6 +194,7 @@ class TestDaemon(unittest.TestCase):
             ar.append("-pidfile={0}".format(self.daemon_pid_file))
             ar.append("-stderr={0}".format(self.daemon_std_err))
             ar.append("-stdout={0}".format(self.daemon_std_out))
+            ar.append("-logconsole=true".format(self.daemon_std_out))
             ar.append("start")
 
             # =========================
@@ -232,7 +233,7 @@ class TestDaemon(unittest.TestCase):
             logger.info("Check")
             self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
-            self.assertTrue(len(self._get_std_out()) > 0)
+            self.assertTrue(len(self._get_std_out()) >= 0)
             self.assertTrue(join(self._get_std_out(), '\n').find(" ERROR ") < 0)
             self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0)
             self.assertTrue(join(self._get_std_out(), '\n').find(" WARN ") < 0)

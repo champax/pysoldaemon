@@ -22,6 +22,7 @@
 # ===============================================================================
 """
 import logging
+from logging.handlers import SysLogHandler
 
 import os
 from pysolbase.SolBase import SolBase
@@ -44,7 +45,12 @@ class CustomDaemon(Daemon):
                        on_start_exit_zero,
                        max_open_files,
                        change_dir,
-                       timeout_ms):
+                       timeout_ms,
+                       logtosyslog=True,
+                       logtosyslog_facility=SysLogHandler.LOG_LOCAL0,
+                       logtoconsole=True,
+                       app_name="Test"
+                       ):
 
         # Us
         self.is_running = True
@@ -56,7 +62,8 @@ class CustomDaemon(Daemon):
         self.last_action = "noaction"
 
         # Base
-        Daemon._internal_init(self, pidfile, stdin, stdout, stderr, logfile, loglevel, on_start_exit_zero, max_open_files, change_dir, timeout_ms)
+        Daemon._internal_init(self, pidfile, stdin, stdout, stderr, logfile, loglevel, on_start_exit_zero, max_open_files, change_dir, timeout_ms,
+                              logtosyslog, logtosyslog_facility, logtoconsole, app_name)
 
         # Log
         logger.debug("Done, self.class=%s", SolBase.get_classname(self))

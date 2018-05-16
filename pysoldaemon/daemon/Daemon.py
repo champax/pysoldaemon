@@ -26,6 +26,7 @@ import argparse
 import atexit
 import logging
 import sys
+from logging.handlers import SysLogHandler
 
 from pysolbase.SolBase import SolBase
 
@@ -63,11 +64,17 @@ class Daemon(object):
 
     def _internal_init(self,
                        pidfile,
-                       stdin, stdout, stderr, logfile, loglevel,
+                       stdin, stdout, stderr,
+                       logfile, loglevel,
                        on_start_exit_zero,
                        max_open_files,
                        change_dir,
-                       timeout_ms):
+                       timeout_ms,
+                       logtosyslog=True,
+                       logtosyslog_facility=SysLogHandler.LOG_LOCAL0,
+                       logtoconsole=False,
+                       app_name=None
+                       ):
         """
         Internal init.
         :param pidfile: Pid file.
@@ -82,7 +89,7 @@ class Daemon(object):
         :type stdout: str
         :param stderr: stderr. What else?
         :type stderr: str
-        :param logfile: logfile. What else?
+        :param logfile: logfile. If none or empty, log to files will be disabled. What else?
         :type logfile: str
         :param loglevel: loglevel. What else?
         :type loglevel: str
@@ -90,6 +97,14 @@ class Daemon(object):
         :type on_start_exit_zero: bool
         :param timeout_ms: Timeout in ms
         :type timeout_ms: int
+        :param logtosyslog: bool,None (default True)
+        :type logtosyslog: bool,None
+        :param logtosyslog_facility: int,None default SysLogHandler.LOG_LOCAL0
+        :type logtosyslog_facility: int,None
+        :param logtoconsole: bool,None (default False)
+        :type logtoconsole: bool,None
+        :param app_name: Application name (syslog), default None
+        :type app_name: str,None
         """
 
         # Store
@@ -100,44 +115,71 @@ class Daemon(object):
         self._stdin = stdin
         self._stdout = stdout
         self._stderr = stderr
-        self._logfile = logfile
         self._loglevel = loglevel
 
         self._changeDir = change_dir
         self._onStartExitZero = on_start_exit_zero
 
         # Engage logfile asap if specified
-        logger.debug("_logfile=%s", self._logfile)
         logger.debug("_loglevel=%s", self._loglevel)
-        if self._logfile and len(self._logfile) > 0:
-            # Ouch, this hack disable console logs (zzzz), status invocation now flush nothing...
-            if self.vars and "action" in self.vars and self.vars["action"] == "status":
-                logger.info("Bypassing switch to logfile due to 'status' action")
-            else:
-                logger.info("Switching to logfile, you will lost console logs now")
 
-                SolBase.logging_init(
-                    log_level=loglevel,
-                    force_reset=True,
-                    log_to_file=self._logfile,
-                    log_to_syslog=False,
-                    log_to_console=False,
-                )
+        # App name
+        self.v_app_name = app_name
+        if self.v_app_name:
+            SolBase.set_compo_name(self.v_app_name)
+
+        # Init : log to console
+        self.v_log_to_console = False
+        if not logtoconsole is None:
+            self.v_log_to_console = logtoconsole
+
+        # Init : log to file
+        self.v_log_to_file = None
+        if logfile and len(logfile) > 0:
+            self.v_log_to_file = logfile
+
+        # Init : log to syslog
+        self.v_log_to_syslog = True
+        self.v_log_to_syslog_facility = SysLogHandler.LOG_LOCAL0
+        if not logtosyslog is None:
+            self.v_log_to_syslog = logtosyslog
+        if not logtosyslog_facility is None:
+            self.v_log_to_syslog_facility = logtosyslog_facility
+
+        # Log
+        logger.info("Init logs, app_name=%s, v_log_to_file=%s, v_log_to_syslog=%s, v_log_to_syslog_facility=%s, v_log_to_console=%s",
+                    self.v_app_name,
+                    self.v_log_to_file, self.v_log_to_syslog, self.v_log_to_syslog_facility, self.v_log_to_console)
+
+        # Go
+        # Ouch, this hack disable console logs (zzzz), status invocation now flush nothing...
+        if self.vars and "action" in self.vars and self.vars["action"] == "status":
+            logger.info("Bypassing switch to logfile due to 'status' action")
+        else:
+            logger.info("Switching to logfile, you will lost console logs now")
+
+            SolBase.logging_init(
+                log_level=loglevel,
+                force_reset=True,
+                log_to_file=self.v_log_to_file,
+                log_to_syslog=self.v_log_to_syslog,
+                log_to_syslog_facility=self.v_log_to_syslog_facility,
+                log_to_console=self.v_log_to_console,
+            )
 
         logger.debug("_pidfile=%s", self._pidfile)
         logger.debug("_maxOpenFiles=%s", self._maxOpenFiles)
         logger.debug("_timeout_ms=%s", self._timeout_ms)
 
-        logger.debug("_stdin=%s", self._stdin)
-        logger.debug("_stdout=%s", self._stdout)
-        logger.debug("_stderr=%s", self._stderr)
-        logger.debug("_logfile=%s", self._logfile)
-        logger.debug("_loglevel=%s", self._loglevel)
+        logger.info("_stdin=%s", self._stdin)
+        logger.info("_stdout=%s", self._stdout)
+        logger.info("_stderr=%s", self._stderr)
+        logger.info("_loglevel=%s", self._loglevel)
 
         logger.debug("_onStartExitZero=%s", self._onStartExitZero)
         logger.debug("_changeDir=%s", self._changeDir)
 
-        logger.debug("vars=%s", self.vars)
+        logger.info("vars=%s", self.vars)
 
         # Check
         if not pidfile:
@@ -244,7 +286,7 @@ class Daemon(object):
         finally:
             if redir_ok:
                 # We re-open root loggers which target stdout (SolBase act only on them)
-                # This behavior has changes recently (before, re-assigning stdout aws transparently dispatched to loggers)
+                # This behavior has changes recently (before, re-assigning stdout was transparently dispatched to loggers)
                 root = logging.getLogger()
                 for h in root.handlers:
                     if hasattr(h, "stream"):
@@ -703,6 +745,38 @@ class Daemon(object):
             help="logfile (full path) (if specified, all logs goes to this file, console/rsyslog and so on are disabled) [optional]"
         )
         arg_parser.add_argument(
+            "-logconsole",
+            metavar="logconsole",
+            type=bool,
+            default=False,
+            action="store",
+            help="Log to console (boolean) (default False) [optional]"
+        )
+        arg_parser.add_argument(
+            "-logsyslog",
+            metavar="logsyslog",
+            type=bool,
+            default=True,
+            action="store",
+            help="Log to syslog (boolean) (default True) [optional]"
+        )
+        arg_parser.add_argument(
+            "-logsyslog_facility",
+            metavar="logsyslog_facility",
+            type=int,
+            default=16,
+            action="store",
+            help="Log to syslog facility (int) (default local0, 16) [optional]"
+        )
+        arg_parser.add_argument(
+            "-appname",
+            metavar="appname",
+            type=str,
+            default="KnockDaemon",
+            action="store",
+            help="Syslog appname (str) (default KnockDaemon) [optional]"
+        )
+        arg_parser.add_argument(
             "-loglevel",
             metavar="loglevel",
             type=str,
@@ -834,6 +908,12 @@ class Daemon(object):
             change_dir = vars_hsh["changedir"]
             timeout_ms = vars_hsh["timeoutms"]
 
+            # New
+            logconsole = vars_hsh["logconsole"]
+            logsyslog = vars_hsh["logsyslog"]
+            logsyslog_facility = vars_hsh["logsyslog_facility"]
+            appname = vars_hsh["appname"]
+
             # Allocate now
             logger.debug("Allocating Daemon")
             di = cls.get_daemon_instance()
@@ -848,7 +928,11 @@ class Daemon(object):
                 on_start_exit_zero=on_start_exit_zero,
                 max_open_files=max_open_files,
                 change_dir=change_dir,
-                timeout_ms=timeout_ms
+                timeout_ms=timeout_ms,
+                logtosyslog=logsyslog,
+                logtosyslog_facility=logsyslog_facility,
+                logtoconsole=logconsole,
+                app_name=appname,
             )
 
             logger.debug("action=%s, user=%s, group=%s", action, user, group)
@@ -863,10 +947,11 @@ class Daemon(object):
                 di._daemon_reload()
             else:
                 logger.info("Invalid action=%s", action)
-                print (
+                print(
                     "usage: %s -pidfile filename [_maxopenfiles int] [-timeoutms int] "
                     "[-stdin string] [-stdout string] [-stderr string] [-logfile string] [-loglevel string] [-changedir bool] "
-                    "[-onstartexitzero bool] [-user string] [-group string] start|stop|status|reload" %
+                    "[-onstartexitzero bool] [-user string] [-group string] [-logsyslog bool] [-logtosyslog_facility int] [-logtoconsole bool] [-appname string]"
+                    "start|stop|status|reload" %
                     argv[0])
                 sys.exit(2)
 
