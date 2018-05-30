@@ -1,7 +1,6 @@
 # gevent stack
 greenlet
-gevent
+gevent == 1.2.2
 
 # pysol
-# pysolbase
-git+https://github.com/champax/pysolbase.git@py3#egg=pysolbase
+pysolbase
