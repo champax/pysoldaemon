@@ -236,7 +236,7 @@ class Daemon(object):
             redir_ok = True
             return
         except Exception as ex:
-            logger.warn("dup2 failed, fallback now, ex=%s", SolBase.extostr(ex))
+            logger.warning("dup2 failed, fallback now, ex=%s", SolBase.extostr(ex))
             if so:
                 so.close()
             if si:
@@ -259,18 +259,29 @@ class Daemon(object):
             sys.stderr.flush()
 
             # Open new std
-            logger.debug("Opening new std, %s, %s, %s", self._stdin, self._stdout, self._stderr)
+            logger.debug("Opening new std, _stdin=%s", self._stdin)
             si = open(self._stdin, "r")
+            logger.debug("Opened new std, si=%s", si)
+
+            logger.debug("Opening new std, _stdout=%s", self._stdout)
             so = open(self._stdout, "a+")
-            se = open(self._stderr, "a+", 0)
-            logger.debug("Opened, %s, %s, %s", si, so, se)
+            logger.debug("Opened new std, so=%s", so)
+
+            logger.debug("Opening new std, _stderr=%s", self._stderr)
+            se = open(self._stderr, "a+")
+            logger.debug("Opened new std, se=%s", se)
 
             # Dup std
             logger.debug("Assigning new std (expecting log loss now)")
+
             sys.stdin = si
+            logger.debug("Assigned new std, sys.stdin=%s", sys.stdin)
+
             sys.stdout = so
+            logger.debug("Assigned new std, sys.stdout=%s", sys.stdout)
+
             sys.stderr = se
-            logger.debug("Assigned, %s, %s, %s", sys.stdin, sys.stdout, sys.stderr)
+            logger.debug("Assigned new std, sys.stderr=%s", sys.stderr)
 
             redir_ok = True
 
@@ -284,16 +295,24 @@ class Daemon(object):
                 se.close()
             sys.exit(-2)
         finally:
-            if redir_ok:
-                # We re-open root loggers which target stdout (SolBase act only on them)
-                # This behavior has changes recently (before, re-assigning stdout was transparently dispatched to loggers)
-                root = logging.getLogger()
-                for h in root.handlers:
-                    if hasattr(h, "stream"):
-                        if hasattr(h.stream, "name"):
-                            if h.stream.name == "<stdout>":
-                                logger.debug("Re-assigning logger h.stream for h=%s", h)
-                                h.stream = so
+            SolBase.sleep(0)
+            try:
+                if redir_ok:
+                    # We re-open root loggers which target stdout (SolBase act only on them)
+                    # This behavior has changes recently (before, re-assigning stdout aws transparently dispatched to loggers)
+                    root = logging.getLogger()
+                    for h in root.handlers:
+                        if hasattr(h, "stream"):
+                            if hasattr(h.stream, "name"):
+                                if h.stream.name == "<stdout>":
+                                    logger.debug("Re-assigning logger h.stream for h=%s", h)
+                                    h.stream = so
+                                    logger.debug("Re-assigned logger h.stream for h=%s", h)
+            except Exception as ex:
+                logger.warning("Ex=%s", SolBase.extostr(ex))
+            finally:
+                logger.debug("Exiting now")
+                SolBase.sleep(0)
 
     def _set_limits(self):
         """
@@ -606,7 +625,7 @@ class Daemon(object):
             return
 
         # Not cool
-        logger.warn("SIGTERM timeout=%s ms, pid=%s", self._timeout_ms, pid)
+        logger.warning("SIGTERM timeout=%s ms, pid=%s", self._timeout_ms, pid)
 
     def _daemon_status(self):
         """
@@ -648,7 +667,7 @@ class Daemon(object):
         # Get
         pid = self._get_running_pid()
         if not pid:
-            logger.warn("Daemon not running, (no pidfile), pidfile=%s", self._pidfile)
+            logger.warning("Daemon not running, (no pidfile), pidfile=%s", self._pidfile)
             return
 
         # Signal it
@@ -950,8 +969,7 @@ class Daemon(object):
                 print(
                     "usage: %s -pidfile filename [_maxopenfiles int] [-timeoutms int] "
                     "[-stdin string] [-stdout string] [-stderr string] [-logfile string] [-loglevel string] [-changedir bool] "
-                    "[-onstartexitzero bool] [-user string] [-group string] [-logsyslog bool] [-logtosyslog_facility int] [-logtoconsole bool] [-appname string]"
-                    "start|stop|status|reload" %
+                    "[-onstartexitzero bool] [-user string] [-group string] start|stop|status|reload" %
                     argv[0])
                 sys.exit(2)
 

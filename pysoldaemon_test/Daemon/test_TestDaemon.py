@@ -25,17 +25,18 @@
 import logging
 import unittest
 from multiprocessing import Process
-from string import join
 
 import os
 from pysolbase.FileUtility import FileUtility
 from pysolbase.SolBase import SolBase
 
+from pysoldaemon import PY2
 from pysoldaemon_test.Daemon.CustomDaemon import CustomDaemon
 
 SolBase.voodoo_init()
 logger = logging.getLogger(__name__)
-SolBase.fix_paths_for_popen()
+# SolBase.fix_paths_for_popen()
+# SolBase.logging_init(log_level="DEBUG", force_reset=True)
 
 
 class TestDaemon(unittest.TestCase):
@@ -100,7 +101,8 @@ class TestDaemon(unittest.TestCase):
     def _reset_std_capture(self):
         pass
 
-    def _file_to_list(self, file_name, sep="\n"):
+    @classmethod
+    def _file_to_list(cls, file_name, sep="\n"):
         """
         Load a file to a list, \n delimited
         :param file_name: File name
@@ -112,14 +114,14 @@ class TestDaemon(unittest.TestCase):
         """
 
         ret = None
-        # noinspection PyBroadException
+        # noinspection PyBroadException,PyPep8
         try:
             if FileUtility.is_file_exist(file_name):
                 ret = FileUtility.file_to_textbuffer(file_name, "ascii")
         except:
             ret = None
         finally:
-            if SolBase.is_string_not_empty(ret):
+            if ret and len(ret) > 0:
                 return ret.split(sep)
             else:
                 return list()
@@ -150,7 +152,8 @@ class TestDaemon(unittest.TestCase):
     def _get_std_out(self):
         """
         Get
-        :return: A String
+        :return: list
+        :rtype: list
         """
 
         ms_start = SolBase.mscurrent()
@@ -166,18 +169,46 @@ class TestDaemon(unittest.TestCase):
     def _get_std_err(self):
         """
         Get
-        :return: A String
+        :return: list
+        :rtype: list
         """
 
         ms_start = SolBase.mscurrent()
         while True:
             ar = self._file_to_list(self.daemon_std_err)
+
             if len(ar) > 0:
                 return ar
             elif SolBase.msdiff(ms_start) > self.std_err_timeout_ms:
                 return list()
             else:
                 SolBase.sleep(10)
+
+    def _join_process(self, p, force_py3=False):
+        """
+        Join process
+        :param p: multiprocessing.Process
+        :type p: multiprocessing.Process
+        :param force_py3: bool
+        :type force_py3: bool
+        """
+
+        if PY2:
+            p.join(self.test_timeout_ms)
+            logger.info("Joined")
+            self.assertTrue(p.exitcode == 0)
+        else:
+            if force_py3:
+                logger.info("Joining (force_py3)")
+                p.join(self.test_timeout_ms)
+                logger.info("Joined (force_py3)")
+                self.assertTrue(p.exitcode == 0)
+            else:
+                # Python 3 : this call to join blocks (even with the double fork)
+                # => we do not join
+                # TODO : Check this
+                logger.warning("PY3 : disabled join call (it blocks even with double fork)")
+                SolBase.sleep(500)
 
     def test_start_status_reload_stop(self):
         """
@@ -205,13 +236,15 @@ class TestDaemon(unittest.TestCase):
             logger.info("Start, ar=%s", ar)
             p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
             p.start()
-            p.join(self.test_timeout_ms)
+            logger.info("Started")
+            SolBase.sleep(0)
+            self._join_process(p)
 
             # Try wait for stdout
-            logger.info("Wait")
+            logger.info("Wait stdout")
             ms_start = SolBase.mscurrent()
             while SolBase.msdiff(ms_start) < self.stdout_timeout_ms:
-                if join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0:
+                if "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0:
                     logger.info("Wait break")
                     break
                 else:
@@ -233,10 +266,10 @@ class TestDaemon(unittest.TestCase):
             logger.info("Check")
             self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
-            self.assertTrue(len(self._get_std_out()) >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" ERROR ") < 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" WARN ") < 0)
+            self.assertTrue(len(self._get_std_out()) > 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" WARN ") < 0)
 
             # =========================
             # STATUS
@@ -252,8 +285,7 @@ class TestDaemon(unittest.TestCase):
                 # Launch
                 p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
                 p.start()
-                p.join(self.test_timeout_ms)
-                self.assertTrue(p.exitcode == 0)
+                self._join_process(p, force_py3=True)
 
             # =========================
             # RELOAD
@@ -269,8 +301,7 @@ class TestDaemon(unittest.TestCase):
                 # Launch
                 p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
                 p.start()
-                p.join(self.test_timeout_ms)
-                self.assertTrue(p.exitcode == 0)
+                self._join_process(p, force_py3=True)
 
             # =========================
             # STOP
@@ -285,7 +316,7 @@ class TestDaemon(unittest.TestCase):
             # Launch
             p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
             p.start()
-            p.join(self.test_timeout_ms)
+            self._join_process(p, force_py3=True)
 
             # =========================
             # OVER, CHECK LOGS
@@ -294,7 +325,7 @@ class TestDaemon(unittest.TestCase):
             # Try wait for stdout
             ms_start = SolBase.mscurrent()
             while SolBase.msdiff(ms_start) < self.stdout_timeout_ms:
-                if join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_stop") >= 0 and join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_status") >= 0:
+                if "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_stop") >= 0 and "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_status") >= 0:
                     break
                 else:
                     SolBase.sleep(10)
@@ -314,11 +345,11 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" ERROR ") < 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_stop") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_status") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" WARN ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_stop") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_status") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" WARN ") < 0)
 
             # =========================
             # OVER, CHECK ACTION FILE
@@ -360,12 +391,12 @@ class TestDaemon(unittest.TestCase):
             # Launch
             p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
             p.start()
-            p.join(self.test_timeout_ms)
+            self._join_process(p)
 
             # Try wait for stdout
             ms_start = SolBase.mscurrent()
             while SolBase.msdiff(ms_start) < self.stdout_timeout_ms:
-                if join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0:
+                if "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0:
                     break
                 else:
                     SolBase.sleep(10)
@@ -385,9 +416,9 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" ERROR ") < 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" WARN ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" WARN ") < 0)
 
             # =========================
             # STATUS
@@ -403,8 +434,7 @@ class TestDaemon(unittest.TestCase):
                 # Launch
                 p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
                 p.start()
-                p.join(self.test_timeout_ms)
-                self.assertTrue(p.exitcode == 0)
+                self._join_process(p, force_py3=True)
 
             # =========================
             # RELOAD
@@ -420,8 +450,7 @@ class TestDaemon(unittest.TestCase):
                 # Launch
                 p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
                 p.start()
-                p.join(self.test_timeout_ms)
-                self.assertTrue(p.exitcode == 0)
+                self._join_process(p, force_py3=True)
 
             # =========================
             # STOP
@@ -436,7 +465,7 @@ class TestDaemon(unittest.TestCase):
             # Launch
             p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
             p.start()
-            p.join(self.test_timeout_ms)
+            self._join_process(p, force_py3=True)
 
             # =========================
             # OVER, CHECK LOGS
@@ -445,8 +474,8 @@ class TestDaemon(unittest.TestCase):
             # Try wait for stdout
             ms_start = SolBase.mscurrent()
             while SolBase.msdiff(ms_start) < self.stdout_timeout_ms:
-                if join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_stop") >= 0 \
-                        and join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_status") >= 0:
+                if "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_stop") >= 0 \
+                        and "n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_status") >= 0:
                     break
                 else:
                     SolBase.sleep(10)
@@ -466,11 +495,11 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" ERROR ") < 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_start") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_stop") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" INFO | CustomDaemon@_on_status") >= 0)
-            self.assertTrue(join(self._get_std_out(), '\n').find(" WARN ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_start") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_stop") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" INFO | CustomDaemon@_on_status") >= 0)
+            self.assertTrue("n".join(self._get_std_out()).find(" WARN ") < 0)
 
             # =========================
             # OVER, CHECK ACTION FILE

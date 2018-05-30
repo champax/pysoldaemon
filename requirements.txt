@@ -1,7 +1,6 @@
 # gevent stack
 greenlet
-gevent
+gevent == 1.2.2
 
 # pysol
-pysolbase >= 1.0.5
-
+pysolbase
