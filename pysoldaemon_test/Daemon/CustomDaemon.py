@@ -22,14 +22,19 @@
 # ===============================================================================
 """
 import logging
+import sys
 from logging.handlers import SysLogHandler
 
 import os
+
+from gevent.event import Event
 from pysolbase.SolBase import SolBase
 
 from pysoldaemon.daemon.Daemon import Daemon
 
 logger = logging.getLogger(__name__)
+
+SolBase.voodoo_init()
 
 
 class CustomDaemon(Daemon):
@@ -58,7 +63,7 @@ class CustomDaemon(Daemon):
         self.stop_count = 0
         self.reload_count = 0
         self.status_count = 0
-        self.start_loop_exited = False
+        self.start_loop_exited = Event()
         self.last_action = "noaction"
 
         # Base
@@ -90,7 +95,7 @@ class CustomDaemon(Daemon):
                     self.is_running,
                     self.start_count, self.stop_count, self.reload_count, self.status_count,
                     self.last_action,
-                    self.start_loop_exited
+                    self.start_loop_exited.is_set(),
                     )
         f.write(buf)
         f.close()
@@ -108,9 +113,10 @@ class CustomDaemon(Daemon):
         # Signal
         self.is_running = False
 
-        # Wait for completion
-        while not self.start_loop_exited:
-            SolBase.sleep(10)
+        # As described in https://github.com/gevent/gevent/issues/799
+        # - signals run into the main thread
+        # - we cannot wait or switch here => direct exit
+        return
 
     def _on_reload(self, *args, **kwargs):
         """
@@ -135,11 +141,11 @@ class CustomDaemon(Daemon):
             SolBase.sleep(10)
         logger.info("Exited running loop")
 
-        self.start_loop_exited = True
         self._write_state()
+        self.start_loop_exited.set()
         logger.debug("Exited")
 
-    def _on_status(self):
+    def _on_status(self, *argv, **kwargs):
         """
         Test
         """
@@ -147,3 +153,16 @@ class CustomDaemon(Daemon):
         self.status_count += 1
         self.last_action = "status"
         self._write_state()
+
+
+# ==========================
+# MAIN / COMMAND LINE INTERCEPTION
+# ==========================
+
+if __name__ == "__main__":
+    """
+    Main
+    """
+
+    # Run
+    CustomDaemon.main_helper(sys.argv, {})

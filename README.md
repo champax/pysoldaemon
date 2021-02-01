@@ -5,13 +5,13 @@ Welcome to pysol
 
 Copyright (C) 2013/2017 Laurent Labatut / Laurent Champagnac
 
-pysoldaemon is a generic linux daemon in python.
+pysoldaemon is a generic linux daemon in Python.
 
 It supports :
 - Double forking
 - std redirect to files
 - log to file
-- working directory change after fork 1
+- working directory change after Fork 1
 - start/stop/status/reload commands
 
 It is gevent (co-routines) based.
@@ -30,20 +30,20 @@ Source code
 - All unittest files must begin with `test_` or `Test`, should implement setUp and tearDown methods
 - All tests must adapt to any running directory
 - The whole project is backed by gevent (http://www.gevent.org/)
-- We use docstring (:return, :rtype, :param, :type etc..), they are mandatory
+- We use docstring (:return, :rtype, :param, :type etc), they are mandatory
 - We use PyCharm "noinspection", feel free to use them
 
 Requirements
 ===============
 
-- Debian 8 Jessie or greater, x64, Python 2.7
+- Debian 10 or greater, x64, Python 3.7
 
 Unittests
 ===============
 
 To run unittests, you will need:
 
-- nothing special except python and dependencies requirements.
+- nothing special except Python and dependencies requirements.
 
 License
 ===============
