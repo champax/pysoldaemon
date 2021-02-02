@@ -55,8 +55,6 @@ def requirement_read(req_file):
             # Ok
             local_req_list.append(row_buffer)
 
-    print("local_req_list={0}".format(local_req_list))
-    print("local_dep_list={0}".format(local_dep_list))
     return local_req_list, local_dep_list
 
 
@@ -91,12 +89,13 @@ setup(
     include_package_data=True,
 
     # License & read me
-    license=open("LICENSE.txt").read(),
+    license="GPLv3",
     long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
 
     # Data files
     data_files=[
-        ("", ["requirements_test.txt", "requirements.txt", "README.md", "LICENSE.txt"]),
+        ("", ["requirements_test.txt", "requirements.txt", "README.md", "LICENSE.md"]),
     ],
 
     # Classifiers
@@ -104,7 +103,7 @@ setup(
         "Development Status :: 5 - Production/Stable",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries",
