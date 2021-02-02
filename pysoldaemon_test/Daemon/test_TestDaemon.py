@@ -43,6 +43,7 @@ real_stderr = sys.stderr
 real_stdin = sys.stdin
 
 
+# TODO : tox fail in command line without test error but with "discover (exited with code 1)"
 class TestDaemon(unittest.TestCase):
     """
     Test
@@ -52,6 +53,8 @@ class TestDaemon(unittest.TestCase):
         """
         Setup
         """
+        logger.info("*** SETUP in")
+
         SolBase.voodoo_init()
         self.run_idx = 0
 
@@ -81,18 +84,22 @@ class TestDaemon(unittest.TestCase):
         # Clean
         self._clean_files()
 
+        logger.info("*** SETUP out")
+
     def tearDown(self):
         """
         Test
         """
 
         # Reset (otherwise it blows up into teamcity again)
+        logger.info("*** TEARDOWN in")
         sys.stdin.close()
         sys.stderr.close()
         sys.stdin.close()
         sys.stdin = self.tc_stdin
         sys.stdout = self.tc_stdout
         sys.stderr = self.tc_stderr
+        logger.info("*** TEARDOWN out")
 
     # ==============================
     # UTILITIES
@@ -433,7 +440,7 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(buf.find("last_action=stop") >= 0)
 
         finally:
-            logger.debug("Exiting test, idx=%s", self.run_idx)
+            logger.info("Exiting test, idx=%s", self.run_idx)
 
     def test_start_status_reload_stop_logfile(self):
         """
