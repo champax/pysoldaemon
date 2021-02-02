@@ -3,4 +3,4 @@ greenlet
 gevent
 
 # pysol
-pysolbase
+pysolbase>=3.0.0

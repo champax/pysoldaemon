@@ -3,3 +3,6 @@ nosexcover
 pylint
 twine
 tox
+
+# tox related : https://github.com/tox-dev/tox/issues/1473
+importlib-metadata==2.1.0

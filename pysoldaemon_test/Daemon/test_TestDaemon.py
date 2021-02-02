@@ -21,24 +21,29 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 # ===============================================================================
 """
+import subprocess
+from os.path import dirname, abspath
 
+import sys
 import logging
 import unittest
 from multiprocessing import Process
 
 import os
+
 from pysolbase.FileUtility import FileUtility
 from pysolbase.SolBase import SolBase
-
-from pysoldaemon import PY2
 from pysoldaemon_test.Daemon.CustomDaemon import CustomDaemon
 
 SolBase.voodoo_init()
 logger = logging.getLogger(__name__)
-# SolBase.fix_paths_for_popen()
-# SolBase.logging_init(log_level="DEBUG", force_reset=True)
+
+real_stdout = sys.stdout
+real_stderr = sys.stderr
+real_stdin = sys.stdin
 
 
+# TODO : tox fail in command line without test error but with "discover (exited with code 1)"
 class TestDaemon(unittest.TestCase):
     """
     Test
@@ -48,14 +53,26 @@ class TestDaemon(unittest.TestCase):
         """
         Setup
         """
+        logger.info("*** SETUP in")
+
         SolBase.voodoo_init()
         self.run_idx = 0
+
+        self.current_dir = dirname(abspath(__file__)) + SolBase.get_pathseparator()
+
+        # Reset (teamcity broke the whole stuff)
+        self.tc_stdin = sys.stdin
+        self.tc_stdout = sys.stdout
+        self.tc_stderr = sys.stderr
+        sys.stdin = real_stdin
+        sys.stdout = real_stdout
+        sys.stderr = real_stderr
 
         # Log
         logger.info("Entering, %s", SolBase.get_current_pid_as_string())
 
         # Config
-        self.test_timeout_ms = 5000
+        self.test_timeout_ms = 30000
         self.stdout_timeout_ms = 5000
         self.std_err_timeout_ms = 500
 
@@ -67,11 +84,22 @@ class TestDaemon(unittest.TestCase):
         # Clean
         self._clean_files()
 
+        logger.info("*** SETUP out")
+
     def tearDown(self):
         """
         Test
         """
-        pass
+
+        # Reset (otherwise it blows up into teamcity again)
+        logger.info("*** TEARDOWN in")
+        sys.stdin.close()
+        sys.stderr.close()
+        sys.stdin.close()
+        sys.stdin = self.tc_stdin
+        sys.stdout = self.tc_stdout
+        sys.stderr = self.tc_stderr
+        logger.info("*** TEARDOWN out")
 
     # ==============================
     # UTILITIES
@@ -151,14 +179,29 @@ class TestDaemon(unittest.TestCase):
 
     def _get_std_out(self):
         """
+        Get stdout
+        :return: list
+        :rtype: list
+        """
+        return self._get_std_out_file(self.daemon_std_out)
+
+    def _get_std_out_file(self, file_name):
+        """
         Get
+        :param file_name: str
+        :type file_name: str
         :return: list
         :rtype: list
         """
 
+        try:
+            sys.stdout.flush()
+        except ValueError:
+            pass
+
         ms_start = SolBase.mscurrent()
         while True:
-            ar = self._file_to_list(self.daemon_std_out)
+            ar = self._file_to_list(file_name)
             if len(ar) > 0:
                 return ar
             elif SolBase.msdiff(ms_start) > self.stdout_timeout_ms:
@@ -173,6 +216,10 @@ class TestDaemon(unittest.TestCase):
         :rtype: list
         """
 
+        try:
+            sys.stderr.flush()
+        except ValueError:
+            pass
         ms_start = SolBase.mscurrent()
         while True:
             ar = self._file_to_list(self.daemon_std_err)
@@ -184,31 +231,53 @@ class TestDaemon(unittest.TestCase):
             else:
                 SolBase.sleep(10)
 
-    def _join_process(self, p, force_py3=False):
+    def _wait_process(self, p):
         """
-        Join process
-        :param p: multiprocessing.Process
-        :type p: multiprocessing.Process
-        :param force_py3: bool
-        :type force_py3: bool
+        Wait process
+        :param p: multiprocessing.Process,Popen
+        :type p: multiprocessing.Process,Popen
         """
 
-        if PY2:
-            p.join(self.test_timeout_ms)
-            logger.info("Joined")
-            self.assertTrue(p.exitcode == 0)
-        else:
-            if force_py3:
-                logger.info("Joining (force_py3)")
-                p.join(self.test_timeout_ms)
-                logger.info("Joined (force_py3)")
-                self.assertTrue(p.exitcode == 0)
-            else:
-                # Python 3 : this call to join blocks (even with the double fork)
-                # => we do not join
-                # TODO : Check this
-                logger.warning("PY3 : disabled join call (it blocks even with double fork)")
-                SolBase.sleep(500)
+        return self._wait_process_exit(p)
+
+    def _wait_process_exit(self, p):
+        """
+        Wait process exit
+        :param p: multiprocessing.Process,Popen
+        :type p: multiprocessing.Process,Popen
+        """
+
+        logger.info("Waiting process exit")
+        ms = SolBase.mscurrent()
+        while SolBase.msdiff(ms) < self.test_timeout_ms:
+            if isinstance(p, Process):
+                if not p.is_alive():
+                    logger.info("Waiting process exit ok")
+                    return
+                else:
+                    SolBase.sleep(10)
+            elif isinstance(p, subprocess.Popen):
+                # Popen
+                sc = p.poll()
+                if sc is not None and sc == 0:
+                    logger.info("Waiting process exit ok")
+                    return
+                else:
+                    SolBase.sleep(10)
+        raise Exception("Waiting process exit timeout")
+
+    def test_stdout(self):
+        """
+        Test
+        """
+
+        if FileUtility.is_file_exist("/tmp/tamer.txt"):
+            os.remove("/tmp/tamer.txt")
+
+        sys.stdout = open("/tmp/tamer.txt", "a+")
+        print("TAMER")
+        ar = self._get_std_out_file("/tmp/tamer.txt")
+        self.assertIn("TAMER", ar)
 
     def test_start_status_reload_stop(self):
         """
@@ -219,9 +288,14 @@ class TestDaemon(unittest.TestCase):
             # Start
             self._reset_std_capture()
 
+            main_helper_file = self.current_dir + "CustomDaemon.py"
+            main_helper_file = abspath(main_helper_file)
+            self.assertTrue(FileUtility.is_file_exist(main_helper_file))
+
             # Params
             ar = list()
-            ar.append("testProgram")
+            ar.append(sys.executable)
+            ar.append(main_helper_file)
             ar.append("-pidfile={0}".format(self.daemon_pid_file))
             ar.append("-stderr={0}".format(self.daemon_std_err))
             ar.append("-stdout={0}".format(self.daemon_std_out))
@@ -232,13 +306,14 @@ class TestDaemon(unittest.TestCase):
             # START
             # =========================
 
+            logger.info("*** START")
+
             # Launch
-            logger.info("Start, ar=%s", ar)
-            p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-            p.start()
+            logger.info("Start : %s", " ".join(ar))
+            p = subprocess.Popen(args=ar)
             logger.info("Started")
             SolBase.sleep(0)
-            self._join_process(p)
+            self._wait_process(p)
 
             # Try wait for stdout
             logger.info("Wait stdout")
@@ -264,7 +339,6 @@ class TestDaemon(unittest.TestCase):
 
             # Check
             logger.info("Check")
-            self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
             self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
@@ -275,48 +349,52 @@ class TestDaemon(unittest.TestCase):
             # STATUS
             # =========================
 
+            logger.info("*** STATUS LOOP")
             for _ in range(0, 10):
                 # Args
                 ar = list()
-                ar.append("testProgram")
+                ar.append(sys.executable)
+                ar.append(main_helper_file)
                 ar.append("-pidfile={0}".format(self.daemon_pid_file))
                 ar.append("status")
 
                 # Launch
-                p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-                p.start()
-                self._join_process(p, force_py3=True)
+                p = subprocess.Popen(args=ar)
+                self._wait_process(p)
 
             # =========================
             # RELOAD
             # =========================
 
+            logger.info("*** RELOAD LOOP")
             for _ in range(0, 10):
                 # Args
                 ar = list()
-                ar.append("testProgram")
+                ar.append(sys.executable)
+                ar.append(main_helper_file)
                 ar.append("-pidfile={0}".format(self.daemon_pid_file))
                 ar.append("reload")
 
                 # Launch
-                p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-                p.start()
-                self._join_process(p, force_py3=True)
+                p = subprocess.Popen(args=ar)
+                self._wait_process(p)
 
             # =========================
             # STOP
             # =========================
 
+            logger.info("*** STOP")
+
             # Args
             ar = list()
-            ar.append("testProgram")
+            ar.append(sys.executable)
+            ar.append(main_helper_file)
             ar.append("-pidfile={0}".format(self.daemon_pid_file))
             ar.append("stop")
 
             # Launch
-            p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-            p.start()
-            self._join_process(p, force_py3=True)
+            p = subprocess.Popen(args=ar)
+            self._wait_process(p)
 
             # =========================
             # OVER, CHECK LOGS
@@ -342,7 +420,6 @@ class TestDaemon(unittest.TestCase):
             logger.info("stdErr ### END")
 
             # Check
-            self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
             self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
@@ -361,10 +438,9 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(buf.find("status_count=10") >= 0)
             self.assertTrue(buf.find("reload_count=10") >= 0)
             self.assertTrue(buf.find("last_action=stop") >= 0)
-            self.assertTrue(buf.find("start_loop_exited=True") >= 0)
 
         finally:
-            logger.debug("Exiting test, idx=%s", self.run_idx)
+            logger.info("Exiting test, idx=%s", self.run_idx)
 
     def test_start_status_reload_stop_logfile(self):
         """
@@ -375,9 +451,14 @@ class TestDaemon(unittest.TestCase):
             # Start
             self._reset_std_capture()
 
+            main_helper_file = self.current_dir + "CustomDaemon.py"
+            main_helper_file = abspath(main_helper_file)
+            self.assertTrue(FileUtility.is_file_exist(main_helper_file))
+
             # Params
             ar = list()
-            ar.append("testProgram")
+            ar.append(sys.executable)
+            ar.append(main_helper_file)
             ar.append("-pidfile={0}".format(self.daemon_pid_file))
             ar.append("-stderr={0}".format(self.daemon_std_err))
             ar.append("-stdout=/dev/null")
@@ -389,9 +470,11 @@ class TestDaemon(unittest.TestCase):
             # =========================
 
             # Launch
-            p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-            p.start()
-            self._join_process(p)
+            logger.info("Start : %s", " ".join(ar))
+            p = subprocess.Popen(args=ar)
+            logger.info("Started")
+            SolBase.sleep(0)
+            self._wait_process(p)
 
             # Try wait for stdout
             ms_start = SolBase.mscurrent()
@@ -413,7 +496,6 @@ class TestDaemon(unittest.TestCase):
             logger.info("stdErr ### END")
 
             # Check
-            self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
             self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
@@ -427,14 +509,14 @@ class TestDaemon(unittest.TestCase):
             for _ in range(0, 10):
                 # Args
                 ar = list()
-                ar.append("testProgram")
+                ar.append(sys.executable)
+                ar.append(main_helper_file)
                 ar.append("-pidfile={0}".format(self.daemon_pid_file))
                 ar.append("status")
 
                 # Launch
-                p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-                p.start()
-                self._join_process(p, force_py3=True)
+                p = subprocess.Popen(args=ar)
+                self._wait_process(p)
 
             # =========================
             # RELOAD
@@ -443,14 +525,14 @@ class TestDaemon(unittest.TestCase):
             for _ in range(0, 10):
                 # Args
                 ar = list()
-                ar.append("testProgram")
+                ar.append(sys.executable)
+                ar.append(main_helper_file)
                 ar.append("-pidfile={0}".format(self.daemon_pid_file))
                 ar.append("reload")
 
                 # Launch
-                p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-                p.start()
-                self._join_process(p, force_py3=True)
+                p = subprocess.Popen(args=ar)
+                self._wait_process(p)
 
             # =========================
             # STOP
@@ -458,14 +540,14 @@ class TestDaemon(unittest.TestCase):
 
             # Args
             ar = list()
-            ar.append("testProgram")
+            ar.append(sys.executable)
+            ar.append(main_helper_file)
             ar.append("-pidfile={0}".format(self.daemon_pid_file))
             ar.append("stop")
 
             # Launch
-            p = Process(target=CustomDaemon.main_helper, args=(ar, {}))
-            p.start()
-            self._join_process(p, force_py3=True)
+            p = subprocess.Popen(args=ar)
+            self._wait_process(p)
 
             # =========================
             # OVER, CHECK LOGS
@@ -492,7 +574,6 @@ class TestDaemon(unittest.TestCase):
             logger.info("stdErr ### END")
 
             # Check
-            self.assertTrue(p.exitcode == 0)
             self.assertTrue(len(self._get_std_err()) == 0)
             self.assertTrue(len(self._get_std_out()) > 0)
             self.assertTrue("n".join(self._get_std_out()).find(" ERROR ") < 0)
@@ -511,7 +592,6 @@ class TestDaemon(unittest.TestCase):
             self.assertTrue(buf.find("status_count=10") >= 0)
             self.assertTrue(buf.find("reload_count=10") >= 0)
             self.assertTrue(buf.find("last_action=stop") >= 0)
-            self.assertTrue(buf.find("start_loop_exited=True") >= 0)
 
         finally:
             logger.debug("Exiting test, idx=%s", self.run_idx)

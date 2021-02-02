@@ -25,9 +25,13 @@
 import argparse
 import atexit
 import logging
+from signal import SIGUSR1, SIGUSR2, SIGTERM
+
 import sys
 from logging.handlers import SysLogHandler
 
+# noinspection PyProtectedMember
+from gevent.signal import signal
 from pysolbase.SolBase import SolBase
 
 try:
@@ -43,7 +47,6 @@ try:
 except Exception as e:
     print("Possible windows, ex=" + str(e))
 import errno
-import signal
 import os
 import gevent
 
@@ -107,6 +110,11 @@ class Daemon(object):
         :type app_name: str,None
         """
 
+        # File handle
+        self._stderr_file = None
+        self._stdin_file = None
+        self._stdout_file = None
+
         # Store
         self._pidfile = pidfile
         self._maxOpenFiles = max_open_files
@@ -130,7 +138,7 @@ class Daemon(object):
 
         # Init : log to console
         self.v_log_to_console = False
-        if not logtoconsole is None:
+        if logtoconsole is not None:
             self.v_log_to_console = logtoconsole
 
         # Init : log to file
@@ -141,40 +149,28 @@ class Daemon(object):
         # Init : log to syslog
         self.v_log_to_syslog = True
         self.v_log_to_syslog_facility = SysLogHandler.LOG_LOCAL0
-        if not logtosyslog is None:
+        if logtosyslog is not None:
             self.v_log_to_syslog = logtosyslog
-        if not logtosyslog_facility is None:
+        if logtosyslog_facility is not None:
             self.v_log_to_syslog_facility = logtosyslog_facility
 
         # Log
-        logger.info("Init logs, app_name=%s, v_log_to_file=%s, v_log_to_syslog=%s, v_log_to_syslog_facility=%s, v_log_to_console=%s",
+        logger.info("Starting, action=%s, app_name=%s, v_log_to_file=%s, v_log_to_syslog=%s, v_log_to_syslog_facility=%s, v_log_to_console=%s",
+                    self.vars.get("action", None) if self.vars else None,
                     self.v_app_name,
                     self.v_log_to_file, self.v_log_to_syslog, self.v_log_to_syslog_facility, self.v_log_to_console)
 
+        self._logging_reset()
+
         # Go
-        # Ouch, this hack disable console logs (zzzz), status invocation now flush nothing...
-        if self.vars and "action" in self.vars and self.vars["action"] == "status":
-            logger.info("Bypassing switch to logfile due to 'status' action")
-        else:
-            logger.info("Switching to logfile, you will lost console logs now")
-
-            SolBase.logging_init(
-                log_level=loglevel,
-                force_reset=True,
-                log_to_file=self.v_log_to_file,
-                log_to_syslog=self.v_log_to_syslog,
-                log_to_syslog_facility=self.v_log_to_syslog_facility,
-                log_to_console=self.v_log_to_console,
-            )
-
         logger.debug("_pidfile=%s", self._pidfile)
         logger.debug("_maxOpenFiles=%s", self._maxOpenFiles)
         logger.debug("_timeout_ms=%s", self._timeout_ms)
 
-        logger.info("_stdin=%s", self._stdin)
-        logger.info("_stdout=%s", self._stdout)
-        logger.info("_stderr=%s", self._stderr)
-        logger.info("_loglevel=%s", self._loglevel)
+        logger.debug("_stdin=%s", self._stdin)
+        logger.debug("_stdout=%s", self._stdout)
+        logger.debug("_stderr=%s", self._stderr)
+        logger.debug("_loglevel=%s", self._loglevel)
 
         logger.debug("_onStartExitZero=%s", self._onStartExitZero)
         logger.debug("_changeDir=%s", self._changeDir)
@@ -190,21 +186,58 @@ class Daemon(object):
         self._softLimit = None
         self._hardLimit = None
 
+    def _logging_reset(self):
+        """
+        Logging reset
+        """
+
+        # Go
+        # Ouch, this hack disable console logs (zzzz), status invocation now flush nothing...
+        if self.vars and "action" in self.vars and self.vars["action"] in ["status", "reload", "stop"]:
+            logger.debug("Bypassing switch to logfile due to 'status|reload|stop' action")
+        else:
+            logger.debug("Switching to logfile, you will lost console logs now")
+
+            for h in logging.root.handlers:
+                h.close()
+
+            SolBase.logging_init(
+                log_level=self._loglevel,
+                force_reset=True,
+                log_to_file=self.v_log_to_file,
+                log_to_syslog=self.v_log_to_syslog,
+                log_to_syslog_facility=self.v_log_to_syslog_facility,
+                log_to_console=self.v_log_to_console,
+            )
+
     # ===============================================
     # UTILITIES
     # ===============================================
+
+    def _close_files(self):
+        """
+        Close files
+        """
+
+        if self._stdin_file:
+            self._stdin_file.flush()
+            self._stdin_file.close()
+            self._stdin_file = None
+
+        if self._stdout_file:
+            self._stdout_file.flush()
+            self._stdout_file.close()
+            self._stdout_file = None
+
+        if self._stderr_file:
+            self._stderr_file.flush()
+            self._stderr_file.close()
+            self._stderr_file = None
 
     def _redirect_all_std(self):
         """
         Redirect std
         """
-
-        redir_ok = False
-
-        # Init
-        si = None
-        so = None
-        se = None
 
         # Flush
         logger.debug("flushing")
@@ -220,99 +253,20 @@ class Daemon(object):
 
             # Go
             logger.debug("opening new ones")
-            si = open(self._stdin, "r")
-            so = open(self._stdout, "a+")
-            se = open(self._stderr, "a+", 0)
+            self._stdin_file = open(self._stdin, "r")
+            self._stdout_file = open(self._stdout, "a+")
+            self._stderr_file = open(self._stderr, "a+")
 
             # Dup std
             logger.debug("dup2 (expecting log loss now)")
 
-            os.dup2(si.fileno(), sys.stdin.fileno())
-            os.dup2(so.fileno(), sys.stdout.fileno())
-            os.dup2(se.fileno(), sys.stderr.fileno())
+            os.dup2(self._stdin_file.fileno(), sys.stdin.fileno())
+            os.dup2(self._stdout_file.fileno(), sys.stdout.fileno())
+            os.dup2(self._stderr_file.fileno(), sys.stderr.fileno())
             logger.debug("dup2 done")
-
-            # Ok
-            redir_ok = True
-            return
-        except Exception as ex:
-            logger.warning("dup2 failed, fallback now, ex=%s", SolBase.extostr(ex))
-            if so:
-                so.close()
-            if si:
-                si.close()
-            if se:
-                se.close()
-
-        # -------------------------
-        # FALLBACK
-        # -------------------------
-
-        si = None
-        so = None
-        se = None
-
-        try:
-            # Flush
-            logger.debug("Fallback : flushing now")
-            sys.stdout.flush()
-            sys.stderr.flush()
-
-            # Open new std
-            logger.debug("Opening new std, _stdin=%s", self._stdin)
-            si = open(self._stdin, "r")
-            logger.debug("Opened new std, si=%s", si)
-
-            logger.debug("Opening new std, _stdout=%s", self._stdout)
-            so = open(self._stdout, "a+")
-            logger.debug("Opened new std, so=%s", so)
-
-            logger.debug("Opening new std, _stderr=%s", self._stderr)
-            se = open(self._stderr, "a+")
-            logger.debug("Opened new std, se=%s", se)
-
-            # Dup std
-            logger.debug("Assigning new std (expecting log loss now)")
-
-            sys.stdin = si
-            logger.debug("Assigned new std, sys.stdin=%s", sys.stdin)
-
-            sys.stdout = so
-            logger.debug("Assigned new std, sys.stdout=%s", sys.stdout)
-
-            sys.stderr = se
-            logger.debug("Assigned new std, sys.stderr=%s", sys.stderr)
-
-            redir_ok = True
-
-        except Exception as ex:
-            logger.error("fatal, exit(-2) now, ex=%s", SolBase.extostr(ex))
-            if so:
-                so.close()
-            if si:
-                si.close()
-            if se:
-                se.close()
-            sys.exit(-2)
-        finally:
-            SolBase.sleep(0)
-            try:
-                if redir_ok:
-                    # We re-open root loggers which target stdout (SolBase act only on them)
-                    # This behavior has changes recently (before, re-assigning stdout aws transparently dispatched to loggers)
-                    root = logging.getLogger()
-                    for h in root.handlers:
-                        if hasattr(h, "stream"):
-                            if hasattr(h.stream, "name"):
-                                if h.stream.name == "<stdout>":
-                                    logger.debug("Re-assigning logger h.stream for h=%s", h)
-                                    h.stream = so
-                                    logger.debug("Re-assigned logger h.stream for h=%s", h)
-            except Exception as ex:
-                logger.warning("Ex=%s", SolBase.extostr(ex))
-            finally:
-                logger.debug("Exiting now")
-                SolBase.sleep(0)
+        except Exception:
+            self._close_files()
+            raise
 
     def _set_limits(self):
         """
@@ -418,11 +372,11 @@ class Daemon(object):
 
         # Finish
         logger.debug("registering gevent signal handler : SIGUSR1")
-        gevent.signal(signal.SIGUSR1, self._on_reload)
+        signal(SIGUSR1, self._on_reload)
         logger.debug("registering gevent signal handler : SIGUSR2")
-        gevent.signal(signal.SIGUSR2, self._on_status)
+        signal(SIGUSR2, self._on_status)
         logger.debug("registering gevent signal handler : SIGTERM")
-        gevent.signal(signal.SIGTERM, self._exit_handler)
+        signal(SIGTERM, self._exit_handler)
 
         logger.debug("registering gevent signal handler : done")
 
@@ -512,6 +466,7 @@ class Daemon(object):
             pass
 
         logger.debug("exiting Daemon with exit(0)")
+        self._close_files()
         sys.exit(0)
 
     # ===============================================
@@ -542,7 +497,7 @@ class Daemon(object):
         if pid:
             # Check with SIGUSR2
             try:
-                os.kill(pid, signal.SIGUSR2)
+                os.kill(pid, SIGUSR2)
 
                 # Check success, asked to start, but already running
                 logger.info("Already running, exit(1) now, pid=%s", pid)
@@ -580,7 +535,6 @@ class Daemon(object):
         # - Not running and pid file exist : exit 1 => OK
         # - Not running : exit 3 => OK
         # - Other : 4 => NOT TESTED
-
         """
 
         logger.debug("entering")
@@ -594,7 +548,7 @@ class Daemon(object):
         # Stop it
         logger.debug("sending SIGTERM, pid=%s, pidFile=%s", pid, self._pidfile)
         try:
-            os.kill(pid, signal.SIGTERM)
+            os.kill(pid, SIGTERM)
         except OSError as ex:
             if ex.errno == errno.ESRCH:
                 logger.info("SIGTERM failed, ESRCH, ex=%s", SolBase.extostr(ex))
@@ -616,7 +570,7 @@ class Daemon(object):
         proc_target = "/proc/%d" % pid
         while SolBase.msdiff(ms_start) < self._timeout_ms:
             if os.path.exists(proc_target):
-                SolBase.sleep(100)
+                SolBase.sleep(10)
                 continue
 
             # Over
@@ -647,7 +601,7 @@ class Daemon(object):
 
         # Validate
         try:
-            os.kill(pid, signal.SIGUSR2)
+            os.kill(pid, SIGUSR2)
         except OSError as err:
             if err.errno == errno.ESRCH:
                 # Process not found
@@ -672,7 +626,7 @@ class Daemon(object):
 
         # Signal it
         try:
-            os.kill(pid, signal.SIGUSR1)
+            os.kill(pid, SIGUSR1)
         except OSError as err:
             if err.errno == errno.ESRCH:
                 # Process not found
@@ -954,7 +908,7 @@ class Daemon(object):
                 app_name=appname,
             )
 
-            logger.debug("action=%s, user=%s, group=%s", action, user, group)
+            logger.info("action=%s, user=%s, group=%s", action, user, group)
 
             if action == "start":
                 di._daemon_start(user, group)
