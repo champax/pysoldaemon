@@ -44,6 +44,10 @@ real_stdin = sys.stdin
 
 
 # TODO : tox fail in command line without test error but with "discover (exited with code 1)"
+# relates to
+# [pid 72618] write(20, "\nstandard error:\nobject address  : 0x7f742fb876a0\r\nobject refcount : 2\r\nobject type     : 0x947140\r\nobject type name: ValueError\r\nobject repr     : ValueError('I/O operation on closed file.')\r\nlost sys.stderr\r\n", 210) = 210
+# => removed close call
+
 class TestDaemon(unittest.TestCase):
     """
     Test
@@ -92,10 +96,8 @@ class TestDaemon(unittest.TestCase):
         """
 
         # Reset (otherwise it blows up into teamcity again)
-        logger.info("*** TEARDOWN in")
-        sys.stdin.close()
-        sys.stderr.close()
-        sys.stdin.close()
+        logger.info("*** TEARDOWN in (no close)")
+        # NOTICE : close() call cause tox to fail in command line => removed
         sys.stdin = self.tc_stdin
         sys.stdout = self.tc_stdout
         sys.stderr = self.tc_stderr
