@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ===============================================================================
 #
-# Copyright (C) 2013/2017 Laurent Labatut / Laurent Champagnac
+# Copyright (C) 2013/2025 Laurent Labatut / Laurent Champagnac
 #
 #
 #
@@ -42,11 +42,6 @@ real_stdout = sys.stdout
 real_stderr = sys.stderr
 real_stdin = sys.stdin
 
-
-# TODO : tox fail in command line without test error but with "discover (exited with code 1)"
-# relates to
-# [pid 72618] write(20, "\nstandard error:\nobject address  : 0x7f742fb876a0\r\nobject refcount : 2\r\nobject type     : 0x947140\r\nobject type name: ValueError\r\nobject repr     : ValueError('I/O operation on closed file.')\r\nlost sys.stderr\r\n", 210) = 210
-# => removed close call
 
 class TestDaemon(unittest.TestCase):
     """
