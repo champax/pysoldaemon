@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = [
+    ".",
+]
+include = [
+    "pysoldaemon*",
+]
+exclude = [
+    "pysoldaemon_test*",
+]
+
+[tool.setuptools.package-data]
+mypkg = [
+    "*.txt",
+    "*.md",
+    "*.py",
+]
+
+[project]
+name = "pysoldaemon"
+description = "pysoldaemon"
+version = "3.13.0"
+requires-python = ">= 3.11"
+dependencies = [
+    "pysolbase",
+    "pysolmeters",
+    "redis",
+    "greenlet",
+    "gevent",
+    "distro",
+    "pytz",
+    "pyyaml",
+    "ujson",
+]
+readme = "README.md"
+license = "GPL-3.0"
+license-files = ["LICENSE.md"]
+keywords = ["python", "gevent"]
+authors = [
+    { name = "Laurent Labatut", email = "laurent@labatut.net" },
+    { name = "Laurent Champagnac", email = "champagnac.laurent@gmail.com" },
+]
+maintainers = [
+    { name = "Laurent Labatut", email = "laurent@labatut.net" },
+    { name = "Laurent Champagnac", email = "champagnac.laurent@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Other Environment",
+    "Intended Audience :: Developers",
+    "License-Expression :: GPL-3.0",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries",
+    "Natural Language :: English",
+]
+
+[project.urls]
+Homepage = "https://github.com/champax/pysoldaemon"
+Repository = "https://github.com/champax/pysoldaemon"

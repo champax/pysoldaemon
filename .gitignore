@@ -9,3 +9,5 @@
 /pysoldaemon.egg-info/requires.txt
 /pysoldaemon.egg-info/SOURCES.txt
 /pysoldaemon.egg-info/top_level.txt
+/.tox/
+/build/

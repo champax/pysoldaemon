@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ===============================================================================
 #
-# Copyright (C) 2013/2017 Laurent Labatut / Laurent Champagnac
+# Copyright (C) 2013/2025 Laurent Labatut / Laurent Champagnac
 #
 #
 #
@@ -277,14 +277,14 @@ class Daemon(object):
         try:
             # Get
             self._softLimit, self._hardLimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-            logger.debug("rlimit before : soft=%s, hard=%s", self._softLimit, self._hardLimit)
+            logger.info("rlimit before : soft=%s, hard=%s", self._softLimit, self._hardLimit)
 
             # Update
             resource.setrlimit(resource.RLIMIT_NOFILE, (self._maxOpenFiles, self._maxOpenFiles))
 
             # Get
             self._softLimit, self._hardLimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-            logger.debug("rlimit after, soft=%s, hard=%s", self._softLimit, self._hardLimit)
+            logger.info("rlimit after, soft=%s, hard=%s", self._softLimit, self._hardLimit)
 
         except Exception as ex:
             # Get
@@ -521,7 +521,7 @@ class Daemon(object):
         # =====================
 
         # Exit
-        if self._onStartExitZero is True:
+        if self._onStartExitZero:
             logger.debug("exiting WITH exit(0) due to _onStartExitZero==True")
             sys.exit(0)
         else:
@@ -642,8 +642,8 @@ class Daemon(object):
     @classmethod
     def initialize_arguments_parser(cls):
         """
-        Initialize the parser. 
-        :param cls: class.
+        Initialize the parser
+        :param cls: class
         :return ArgumentParser
         :rtype ArgumentParser
         """
