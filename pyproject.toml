@@ -25,17 +25,7 @@ name = "pysoldaemon"
 description = "pysoldaemon"
 version = "3.13.0"
 requires-python = ">= 3.11"
-dependencies = [
-    "pysolbase",
-    "pysolmeters",
-    "redis",
-    "greenlet",
-    "gevent",
-    "distro",
-    "pytz",
-    "pyyaml",
-    "ujson",
-]
+dynamic = ["dependencies", "optional-dependencies"]
 readme = "README.md"
 license = "GPL-3.0"
 license-files = ["LICENSE.md"]
@@ -57,6 +47,11 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Natural Language :: English",
 ]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+optional-dependencies.test = { file = ["requirements_test.txt"] }
+
 
 [project.urls]
 Homepage = "https://github.com/champax/pysoldaemon"

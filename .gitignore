@@ -1,13 +1,5 @@
-/.idea/encodings.xml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/pysoldaemon.iml
-/.idea/workspace.xml
-/pysoldaemon.egg-info/dependency_links.txt
-/pysoldaemon.egg-info/not-zip-safe
-/pysoldaemon.egg-info/PKG-INFO
-/pysoldaemon.egg-info/requires.txt
-/pysoldaemon.egg-info/SOURCES.txt
-/pysoldaemon.egg-info/top_level.txt
 /.tox/
+/.idea/
 /build/
+/dist/
+/pysoldaemon.egg-info/

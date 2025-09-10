@@ -22,40 +22,7 @@
 # ===============================================================================
 """
 
-import re
 from setuptools import find_packages, setup
-
-
-def requirement_read(req_file):
-    """
-    Doc
-    :param req_file: Doc
-    :return: Doc
-    """
-    local_req_list = list()
-    local_dep_list = list()
-    for row_buffer in open(req_file).readlines():
-        # Skip empty
-        if len(row_buffer.strip()) == 0:
-            continue
-        # Skip "- ..."
-        elif re.match("^-", row_buffer):
-            continue
-        # Skip "# ..."
-        elif re.match("^#", row_buffer):
-            continue
-        # Git stuff (direct)
-        # From : https://github.com/pypa/pip/issues/3610#issuecomment-356687173
-        elif re.match("^git", row_buffer):
-            pkg = row_buffer.split('#')[-1]
-            local_dep_list.append(row_buffer.strip() + '-9876543210')
-            local_req_list.append(pkg.replace('egg=', '').rstrip())
-        else:
-            # Ok
-            local_req_list.append(row_buffer)
-
-    return local_req_list, local_dep_list
-
 
 # ===========================
 # SETUP
@@ -66,10 +33,6 @@ p_author = "Laurent Champagnac"
 p_email = "champagnac.laurent@gmail.com"
 p_url = "https://github.com/champax/pysoldaemon"
 p_version = "3.13.0"
-
-# Load
-req_list, dep_list = requirement_read("requirements.txt")
-test_req_list, _ = requirement_read("requirements_test.txt")
 
 setup(
 
@@ -88,7 +51,6 @@ setup(
     include_package_data=True,
 
     # License & read me
-    license="GPLv3",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
 
@@ -108,15 +70,6 @@ setup(
         "Topic :: Software Development :: Libraries",
         "Natural Language :: English",
     ],
-
-    # Dependencies
-    install_requires=req_list,
-
-    # Direct deps
-    dependency_links=dep_list,
-
-    # Dependencies : test
-    tests_require=test_req_list,
 
     # Zip
     zip_safe=False,
