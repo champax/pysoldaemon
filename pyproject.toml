@@ -23,8 +23,8 @@ mypkg = [
 [project]
 name = "pysoldaemon"
 description = "pysoldaemon"
-version = "3.13.2"
-requires-python = ">= 3.7"
+version = "3.13.3"
+requires-python = ">= 3.11"
 dynamic = ["dependencies", "optional-dependencies"]
 readme = "README.md"
 license = "GPL-3.0"
