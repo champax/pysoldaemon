@@ -1,4 +1,5 @@
 /.tox/
+/.venv/
 /.idea/
 /build/
 /dist/
