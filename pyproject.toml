@@ -52,7 +52,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Other Environment",
     "Intended Audience :: Developers",
-    "License-Expression :: GPL-3.0",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python",
     "Topic :: Software Development :: Libraries",
